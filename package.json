@@ -1,0 +1,23 @@
+{
+  "name": "frida-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "prepare": "npm run build",
+    "build": "frida-compile agent/index.ts -o _agent.js -c",
+    "watch": "frida-compile agent/index.ts -o _agent.js -w",
+    "dev": "frida -n bf4.exe -l _agent.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "frida": "^15.0.13",
+    "typescript": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/frida-gum": "^17.1.0",
+    "@types/node": "^16.4.13",
+    "frida-compile": "^10.2.4"
+  }
+}
