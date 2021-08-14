@@ -10,31 +10,46 @@ enum SpottingEnum {
   unspottable,
 }
 
-class FrostByteClass {
-  constructor (public ptr: NativePointer) {}
 
-  get classInfoPtr () {
-    const code = this.ptr.readPointer()
-    if (code.isNull()) return
+class Utils {
+  static isValidPtr (ptr: NativePointer) {
+    const address = ptr.toUInt32()
+    return !ptr.isNull() && address > 0x10000 && address < 0x000F000000000000
+  }
+
+  static isInvalidPtr (ptr: NativePointer) {
+    return !this.isValidPtr(ptr)
+  }
+
+  static getClassInfoPtr (ptr: NativePointer) {
+    const code = ptr.readPointer()
+    if (Utils.isInvalidPtr(code)) return
 
     const classInfoCode = code.readPointer()
-    if (classInfoCode.isNull()) return
+    if (Utils.isInvalidPtr(classInfoCode)) return
 
-    console.log(classInfoCode.add(0x3).readU32().toString(16), 'offset')
     const classInfo = classInfoCode.add(classInfoCode.add(0x3).readU32() + 0x7)
-    if (classInfo.isNull()) return
+    if (Utils.isInvalidPtr(classInfo)) return
 
     return classInfo
   }
-  
-  get className () {
-    const classInfo = this.classInfoPtr
-    if (!classInfo || classInfo.isNull()) return
+
+  static getClassName (ptr: NativePointer) {
+    const classInfo = this.getClassInfoPtr(ptr)
+    if (!classInfo || Utils.isInvalidPtr(classInfo)) return
 
     const memberInfo = classInfo.readPointer()
-    if (memberInfo.isNull()) return
+    if (Utils.isInvalidPtr(memberInfo)) return
 
     return memberInfo.readPointer().readCString()
+  }
+}
+
+class FrostByteClass {
+  constructor (public ptr: NativePointer) {}
+
+  get className () {
+    return Utils.getClassName(this.ptr)
   }
 }
 
@@ -42,7 +57,7 @@ class FrostByteClass {
 class SoldierEntity extends FrostByteClass {
   get spotType () {
     const spotTypePtr = this.ptr.add(0xBF0).readPointer().add(0x50)
-    if (spotTypePtr.isNull()) return
+    if (Utils.isInvalidPtr(spotTypePtr)) return
 
     const typeNum = spotTypePtr.readU8()
     return SpottingEnum[typeNum] as keyof typeof SpottingEnum | undefined
@@ -52,21 +67,21 @@ class SoldierEntity extends FrostByteClass {
     if (!value) return
 
     const spotTypePtr = this.ptr.add(0xBF0).readPointer().add(0x50)
-    if (spotTypePtr.isNull()) return
+    if (Utils.isInvalidPtr(spotTypePtr)) return
 
     spotTypePtr.writeU8(SpottingEnum[value])
   }
 
   get renderFlags () {
     const renderFlagsPtr = this.ptr.add(0x4F4)
-    if (renderFlagsPtr.isNull()) return 0
+    if (Utils.isInvalidPtr(renderFlagsPtr)) return 0
 
     return renderFlagsPtr.readU32()
   }
 
   set renderFlags (value: number) {
     const renderFlagsPtr = this.ptr.add(0x4F4)
-    if (renderFlagsPtr.isNull()) return
+    if (Utils.isInvalidPtr(renderFlagsPtr)) return
 
     renderFlagsPtr.writeU32(value)
   }
@@ -75,19 +90,25 @@ class SoldierEntity extends FrostByteClass {
 class VehicleEntity extends FrostByteClass {
   private findSpottingOffset (path: string) {
     for (let index = 0x510; index <= 0xD80; index += 0x8) {
-      const spottingComponentPtr = this.ptr.add(index).readPointer().add(0x0).readPointer()
-      if (!spottingComponentPtr.isNull()) continue
+      try {
+        if (Utils.isInvalidPtr(this.ptr)) continue
 
-      if (spottingComponentPtr.toInt32() === 0x141BB04F0) {
-        if (this.path !== path) {
-          console.log(chalk.red('!!! vehicle class did not match'))
-          return
+        const checkPtr = this.ptr.add(index).readPointer()
+        if (Utils.isInvalidPtr(checkPtr)) continue
+
+        if (Utils.getClassName(checkPtr) === 'ClientSpottingTargetComponent') {
+          if (this.path !== path) {
+            console.log(chalk.red('!!! vehicle class did not match'))
+            return
+          }
+  
+          const offsetHex = index.toString(16)
+          console.log(chalk.green('offset for', path, 'found at', offsetHex))
+          spottingCache[path] = `0x${offsetHex}`
+          return spottingCache[path]
         }
-
-        const offsetHex = index.toString(16)
-        console.log(chalk.green('offset for', path, 'found at', offsetHex))
-        spottingCache[path] = `0x${offsetHex}`
-        return offsetHex
+      } catch (e) {
+        continue
       }
     }
     console.log(chalk.red('!!! offset not found for', path))
@@ -112,11 +133,16 @@ class VehicleEntity extends FrostByteClass {
   get spotType () {
     const offset = Number(this.getSpottingOffsetCache())
     if (!offset) return
+  
+    if (Utils.isInvalidPtr(this.ptr)) return
 
-    const spotTypePtr = this.ptr.add(offset).readPointer().add(0x50)
-    if (spotTypePtr.isNull()) return
+    const spottingComponent = this.ptr.add(offset).readPointer()
+    if (Utils.isInvalidPtr(spottingComponent)) return
 
-    const typeNum = spotTypePtr.readU8()
+    const spotTypeOffset = spottingComponent.add(0x50)
+    if (Utils.isInvalidPtr(spotTypeOffset)) return
+
+    const typeNum = spotTypeOffset.readU8()
     return SpottingEnum[typeNum] as keyof typeof SpottingEnum | undefined
   }
 
@@ -127,7 +153,7 @@ class VehicleEntity extends FrostByteClass {
     if (!offset) return
 
     const spotTypePtr = this.ptr.add(offset).readPointer().add(0x50)
-    if (spotTypePtr.isNull()) return
+    if (Utils.isInvalidPtr(spotTypePtr)) return
 
     spotTypePtr.writeU8(SpottingEnum[value])
   }
@@ -138,14 +164,14 @@ class Player {
 
   get isInVehicle () {
     const entityPtr = this.entityPtr
-    if (entityPtr.isNull()) return
+    if (Utils.isInvalidPtr(entityPtr)) return
 
     return entityPtr.readU64().toNumber() === 0x141D3D200 // vehicle head ptr
   }
 
   get isOnFoot () {
     const entityPtr = this.entityPtr
-    if (entityPtr.isNull()) return
+    if (Utils.isInvalidPtr(entityPtr)) return
 
     return entityPtr.readU64().toNumber() === 0x141E600C0 // soldier head ptr
   }
@@ -169,7 +195,7 @@ class Player {
   get soldier () {
     if (this.isOnFoot) {
       const entityPtr = this.entityPtr
-      if (entityPtr.isNull()) return
+      if (Utils.isInvalidPtr(entityPtr)) return
       return new SoldierEntity(entityPtr)
     }
   }
@@ -177,7 +203,7 @@ class Player {
   get vehicle () {
     if (this.isInVehicle) {
       const entityPtr = this.entityPtr
-      if (entityPtr.isNull()) return
+      if (Utils.isInvalidPtr(entityPtr)) return
       return new VehicleEntity(entityPtr)
     }
   }
@@ -188,7 +214,7 @@ class Game {
 
   get isScreenShotting () {
     const screenShotClass = ptr(0x14273D6E8).readPointer()
-    if (screenShotClass.isNull()) return false
+    if (Utils.isInvalidPtr(screenShotClass)) return false
 
     return !screenShotClass.add(0x10).readS64().equals(-1)
   }
@@ -210,7 +236,7 @@ class Game {
     for (let i = 0; i <= 64; i++) {
       const playerPtr = playersPtr.add(i * 0x8).readPointer()
 
-      if (!playerPtr.isNull()) {
+      if (!Utils.isInvalidPtr(playerPtr)) {
         players.push(new Player(playerPtr))
       }
     }
@@ -223,9 +249,11 @@ const game = new Game()
 
 let screenShotHappening = false
 let benchmarkCount = 0
+let heartBeat = Date.now()
 
 function render () {
   const throttle = Date.now() 
+  heartBeat = throttle
   benchmarkCount++
 
   if (screenShotHappening) {
@@ -242,17 +270,19 @@ function render () {
   const players = game.players
   const activeEntities: Array<SoldierEntity | VehicleEntity> = []
 
-  for (const player of players) {   
+  for (const player of players) {
+    if (Utils.isInvalidPtr(player.ptr)) continue
     if (localTeamId === player.teamId) continue
     
     const entity = player.entity
-    if (!entity || entity.ptr.isNull()) continue
+    if (!entity || Utils.isInvalidPtr(entity.ptr)) continue
     
     activeEntities.push(entity)
     const spotType = entity.spotType
-    if (spotType === 'active') continue   
+    
+    if (!spotType || spotType === 'active') continue   
     entity.spotType = 'active'
-
+    
     console.log(spotType, '=> active [', player.name, entity instanceof VehicleEntity ? `: ${entity.vehicleName} ]` : ']')
   }
 
@@ -273,17 +303,22 @@ function render () {
 setInterval(() => {
   console.log(chalk.gray('running at', benchmarkCount, 'fps'))
   benchmarkCount = 0
+
+  if (heartBeat + 1000 <= Date.now()) {
+    console.log(chalk.red('restoring'))
+    render()
+  }
 }, 1000)
 
 
 render()
 
-// for (let currentClass = ptr(0x1423e41b8).readPointer(); !currentClass.isNull(); currentClass = currentClass.add(0x8).readPointer()) {
+// for (let currentClass = ptr(0x1423e41b8).readPointer(); !Utils.isInvalidPtr(currentClass); currentClass = currentClass.add(0x8).readPointer()) {
 //   const currentMember = currentClass.readPointer()
-//   if (currentMember.isNull()) continue
+//   if (Utils.isInvalidPtr(currentMember)) continue
 
 //   const currentMemberNamePtr = currentMember.readPointer()
-//   if (currentMemberNamePtr.isNull()) continue
+//   if (Utils.isInvalidPtr(currentMemberNamePtr)) continue
 
 //   const currentMemberName = currentMemberNamePtr.readCString()
 
