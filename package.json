@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
+  "scripts": {    
+    "start": "ts-node index",
     "prepare": "npm run build",
     "build": "frida-compile agent/index.ts -o _agent.js -c",
     "watch": "frida-compile agent/index.ts -o _agent.js -w",
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@types/frida-gum": "^17.1.0",
     "@types/node": "^16.4.13",
-    "frida-compile": "^10.2.4"
+    "frida-compile": "^10.2.4",
+    "ts-node": "^10.2.0"
   }
 }
