@@ -1,3 +1,5 @@
+import chalk from 'chalk'
+
 const spottingCache: {[key: string]: string | undefined} = {}
 
 enum SpottingEnum {
@@ -8,9 +10,36 @@ enum SpottingEnum {
   unspottable,
 }
 
-class SoldierEntity {
+class FrostByteClass {
   constructor (public ptr: NativePointer) {}
 
+  get classInfoPtr () {
+    const code = this.ptr.readPointer()
+    if (code.isNull()) return
+
+    const classInfoCode = code.readPointer()
+    if (classInfoCode.isNull()) return
+
+    console.log(classInfoCode.add(0x3).readU32().toString(16), 'offset')
+    const classInfo = classInfoCode.add(classInfoCode.add(0x3).readU32() + 0x7)
+    if (classInfo.isNull()) return
+
+    return classInfo
+  }
+  
+  get className () {
+    const classInfo = this.classInfoPtr
+    if (!classInfo || classInfo.isNull()) return
+
+    const memberInfo = classInfo.readPointer()
+    if (memberInfo.isNull()) return
+
+    return memberInfo.readPointer().readCString()
+  }
+}
+
+
+class SoldierEntity extends FrostByteClass {
   get spotType () {
     const spotTypePtr = this.ptr.add(0xBF0).readPointer().add(0x50)
     if (spotTypePtr.isNull()) return
@@ -27,46 +56,57 @@ class SoldierEntity {
 
     spotTypePtr.writeU8(SpottingEnum[value])
   }
+
+  get renderFlags () {
+    const renderFlagsPtr = this.ptr.add(0x4F4)
+    if (renderFlagsPtr.isNull()) return 0
+
+    return renderFlagsPtr.readU32()
+  }
+
+  set renderFlags (value: number) {
+    const renderFlagsPtr = this.ptr.add(0x4F4)
+    if (renderFlagsPtr.isNull()) return
+
+    renderFlagsPtr.writeU32(value)
+  }
 }
 
-class VehicleEntity {
-  constructor (public ptr: NativePointer) {}
-
-  private findSpottingOffset (name: string) {
+class VehicleEntity extends FrostByteClass {
+  private findSpottingOffset (path: string) {
     for (let index = 0x510; index <= 0xD80; index += 0x8) {
       const spottingComponentPtr = this.ptr.add(index).readPointer().add(0x0).readPointer()
       if (!spottingComponentPtr.isNull()) continue
 
       if (spottingComponentPtr.toInt32() === 0x141BB04F0) {
-        if (this.name !== name) {
-          console.log('!!! vehicle class does not match')
+        if (this.path !== path) {
+          console.log(chalk.red('!!! vehicle class did not match'))
           return
         }
 
         const offsetHex = index.toString(16)
-        console.log('offset for', name, 'found at', offsetHex)
-        spottingCache[name] = `0x${offsetHex}`
+        console.log(chalk.green('offset for', path, 'found at', offsetHex))
+        spottingCache[path] = `0x${offsetHex}`
         return offsetHex
       }
     }
-    console.log('!!! offset not found for', name)
+    console.log(chalk.red('!!! offset not found for', path))
   }
 
   private getSpottingOffsetCache () {
-    const name = this.name
-    if (!name) return
-    let offset = spottingCache[name]
-    if (!offset) offset = this.findSpottingOffset(name)
+    const path = this.path
+    if (!path) return
+    let offset = spottingCache[path]
+    if (!offset) offset = this.findSpottingOffset(path)
     return offset
   }
 
-  get className () {
+  get vehicleName () {
     return this.ptr.add(0x30).readPointer().add(0xF0).readPointer().readCString()
   }
 
-  get name () {
+  get path () {
     return this.ptr.add(0x30).readPointer().add(0x130).readPointer().readCString()
- 
   }
 
   get spotType () {
@@ -97,14 +137,14 @@ class Player {
   constructor (public ptr: NativePointer) {}
 
   get isInVehicle () {
-    const entityPtr = this.entity
+    const entityPtr = this.entityPtr
     if (entityPtr.isNull()) return
 
     return entityPtr.readU64().toNumber() === 0x141D3D200 // vehicle head ptr
   }
 
   get isOnFoot () {
-    const entityPtr = this.entity
+    const entityPtr = this.entityPtr
     if (entityPtr.isNull()) return
 
     return entityPtr.readU64().toNumber() === 0x141E600C0 // soldier head ptr
@@ -118,13 +158,17 @@ class Player {
     return this.ptr.add(0x13CC).readUInt()
   }
 
-  get entity () {
+  get entityPtr () {
     return this.ptr.add(0x14D0).readPointer()
   }
 
+  get entity () {
+    return this.soldier || this.vehicle
+  }
+
   get soldier () {
-    if (!this.isOnFoot) {
-      const entityPtr = this.entity
+    if (this.isOnFoot) {
+      const entityPtr = this.entityPtr
       if (entityPtr.isNull()) return
       return new SoldierEntity(entityPtr)
     }
@@ -132,7 +176,7 @@ class Player {
 
   get vehicle () {
     if (this.isInVehicle) {
-      const entityPtr = this.entity
+      const entityPtr = this.entityPtr
       if (entityPtr.isNull()) return
       return new VehicleEntity(entityPtr)
     }
@@ -142,10 +186,17 @@ class Player {
 class Game {
   readonly context = ptr(0x142670d80).readPointer()
 
+  get isScreenShotting () {
+    const screenShotClass = ptr(0x14273D6E8).readPointer()
+    if (screenShotClass.isNull()) return false
+
+    return !screenShotClass.add(0x10).readS64().equals(-1)
+  }
+
   get playerManager () {
     return this.context.add(0x60).readPointer()
   }
-  
+
   get playerLocal () {
     const playerPtr = this.playerManager.add(0x540).readPointer()
     return new Player(playerPtr)
@@ -170,44 +221,73 @@ class Game {
 
 const game = new Game()
 
+let screenShotHappening = false
+let benchmarkCount = 0
 
-function spotSoldier (player: Player, soldier: SoldierEntity) {
-  const spotType = soldier.spotType
-  if (!spotType || spotType === 'active') return
+function render () {
+  const throttle = Date.now() 
+  benchmarkCount++
 
-  soldier.spotType = 'active'
-  console.log(spotType.padEnd(11, ' '), '=> active [', player.name, ']')
-}
-
-function spotVehicle (player: Player, vehicle: VehicleEntity) {
-  const spotType = vehicle.spotType
-  if (!spotType || spotType === 'active') return
-
-  vehicle.spotType = 'active'
-  console.log(spotType.padEnd(11, ' '), '=> active [', player.name, ':', vehicle.className, ']')
-}
-
-function doSpotting () {
-  const localTeamId = game.playerLocal.teamId
-  const players = game.players
-
-  for (const player of players) {
-    if (localTeamId === player.teamId) continue
-
-    const soldier = player.soldier
-    if (soldier) {
-      spotSoldier(player, soldier)
-      continue
+  if (screenShotHappening) {
+    if (!game.isScreenShotting) {
+      console.log(chalk.yellow('!!! screenshot done'))
+      screenShotHappening = false
     }
 
-    const vehicle = player.vehicle
-    if (vehicle) {
-      spotVehicle(player, vehicle)
-      continue
-    }
+    setTimeout(render, /* 1000ms / 144 = ~6*/ Math.max(6 - (Date.now() - throttle)))
+    return
   }
 
-  setImmediate(doSpotting)
+  const localTeamId = game.playerLocal.teamId
+  const players = game.players
+  const activeEntities: Array<SoldierEntity | VehicleEntity> = []
+
+  for (const player of players) {   
+    if (localTeamId === player.teamId) continue
+    
+    const entity = player.entity
+    if (!entity || entity.ptr.isNull()) continue
+    
+    activeEntities.push(entity)
+    const spotType = entity.spotType
+    if (spotType === 'active') continue   
+    entity.spotType = 'active'
+
+    console.log(spotType, '=> active [', player.name, entity instanceof VehicleEntity ? `: ${entity.vehicleName} ]` : ']')
+  }
+
+
+  if (game.isScreenShotting) {
+    screenShotHappening = true
+    console.log(chalk.yellow('!!! screenshot cleanup'))
+
+    for (const entity of activeEntities) {
+      entity.spotType = 'none'
+    }
+    
+  }
+
+  setTimeout(render, /* 1000ms / 144 = ~6*/ Math.max(6 - (Date.now() - throttle), 0))
 }
 
-doSpotting()
+setInterval(() => {
+  console.log(chalk.gray('running at', benchmarkCount, 'fps'))
+  benchmarkCount = 0
+}, 1000)
+
+
+render()
+
+// for (let currentClass = ptr(0x1423e41b8).readPointer(); !currentClass.isNull(); currentClass = currentClass.add(0x8).readPointer()) {
+//   const currentMember = currentClass.readPointer()
+//   if (currentMember.isNull()) continue
+
+//   const currentMemberNamePtr = currentMember.readPointer()
+//   if (currentMemberNamePtr.isNull()) continue
+
+//   const currentMemberName = currentMemberNamePtr.readCString()
+
+//   if (currentMemberName?.includes('Client') && currentMemberName?.includes('Vehicle') && currentMemberName.includes('Entity')) {
+//     console.log(currentMemberName, currentClass.toString(16))
+//   }
+// }
