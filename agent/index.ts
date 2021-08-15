@@ -61,6 +61,44 @@ class Utils {
     this.classHeadCache[headPtrAddress] = className
     return className
   }
+
+  static autoEntity (entityPtr?: NativePointer): SoldierEntity | VehicleEntity | undefined {
+    if (Utils.isInvalidPtr(entityPtr)) return
+
+    const className = Utils.getClassName(entityPtr)
+
+    if (className === 'ClientSoldierEntity') {
+      return new SoldierEntity(entityPtr)
+    }
+
+    if (className === 'ClientVehicleEntity') {
+      return new VehicleEntity(entityPtr)
+    }
+  }
+}
+
+class Vec3 {
+  constructor (public ptr: NativePointer) {}
+
+  get x () {
+    return this.ptr.readFloat()
+  }
+
+  get y () {
+    return this.ptr.add(0x4).readFloat()
+  }
+
+  get z () {
+    return this.ptr.add(0x8).readFloat()
+  }
+
+  toArray () {
+    return [this.x, this.y, this.z]
+  }
+
+  toString () {
+    return `[${this.x}, ${this.y}, ${this.z}]`
+  }
 }
 
 class FrostByteClass {
@@ -68,6 +106,58 @@ class FrostByteClass {
 
   get className () {
     return Utils.getClassName(this.ptr)
+  }
+}
+
+class Weapon extends FrostByteClass {
+  get handler () {
+    const handlerPtr = this.ptr.add(0x890).readPointer()
+    if (Utils.isInvalidPtr(handlerPtr)) return
+
+    return handlerPtr
+  }
+
+  get activeSlot () {
+    const activeSlotPtr = this.ptr.add(0xA98)
+    if (Utils.isInvalidPtr(activeSlotPtr)) return
+
+    return activeSlotPtr.readU32()
+  }
+
+  get weaponPtr () {
+    const handler = this.handler
+    if (Utils.isInvalidPtr(handler)) return
+
+    const activeSlot = this.activeSlot
+    if (typeof activeSlot === 'undefined') return
+
+    const weaponPtr = handler.add(activeSlot * 0x8).readPointer()
+    if (Utils.isInvalidPtr(weaponPtr)) return
+
+    return weaponPtr
+  }
+
+  get name () {
+    return this.weaponPtr?.add(0x30).readPointer().add(0x130).readPointer().readCString()
+  }
+
+  get aimingSimulationPtr () {
+    const aimingPtr = this.weaponPtr?.add(0x4988).readPointer()
+    if (Utils.isInvalidPtr(aimingPtr)) return
+
+    return aimingPtr
+  }
+
+  get targetEntity () {
+    const targetPtr = this.aimingSimulationPtr?.add(0x158).readPointer()
+    return Utils.autoEntity(targetPtr)
+  }
+
+  get targetPos () {
+    const targetPos = this.aimingSimulationPtr?.add(0x160)
+    if (Utils.isInvalidPtr(targetPos)) return
+
+    return new Vec3(targetPos)
   }
 }
 
@@ -101,6 +191,13 @@ class SoldierEntity extends FrostByteClass {
     if (Utils.isInvalidPtr(renderFlagsPtr)) return
 
     renderFlagsPtr.writeU32(value)
+  }
+
+  get weapon () {
+    const weaponComponentPtr = this.ptr.add(0x570).readPointer()
+    if (Utils.isInvalidPtr(weaponComponentPtr)) return
+
+    return new Weapon(weaponComponentPtr)
   }
 }
 
@@ -151,8 +248,6 @@ class VehicleEntity extends FrostByteClass {
     const offset = Number(this.getSpottingOffsetCache())
     if (!offset) return
   
-    if (Utils.isInvalidPtr(this.ptr)) return
-
     const spottingComponent = this.ptr.add(offset).readPointer()
     if (Utils.isInvalidPtr(spottingComponent)) return
 
@@ -333,6 +428,10 @@ setInterval(() => {
   benchmarkCount = 0
   skippedFrames = 0
 
+  console.log(game.playerLocal.soldier?.weapon?.name)
+  console.log(game.playerLocal.soldier?.weapon?.targetEntity?.className)
+  console.log(game.playerLocal.soldier?.weapon?.targetPos)
+
   if (heartBeat + 1000 <= Date.now()) {
     console.log(chalk.red('[error]: restoring main loop'))
     render()
@@ -351,7 +450,7 @@ render()
 
 //   const currentMemberName = currentMemberNamePtr.readCString()
 
-//   if (currentMemberName?.includes('Client') && currentMemberName?.includes('Vehicle') && currentMemberName.includes('Entity')) {
+//   if (currentMemberName?.includes('Simulation')) {
 //     console.log(currentMemberName, currentClass.toString(16))
 //   }
 // }
