@@ -199,6 +199,20 @@ class SoldierEntity extends FrostByteClass {
 
     return new Weapon(weaponComponentPtr)
   }
+
+  get isOccluded () {
+    const occludedPtr = this.ptr.add(0x05B1)
+    if (Utils.isInvalidPtr(occludedPtr)) return
+
+    return Boolean(occludedPtr.readU8())
+  }
+
+  get player (): Player | undefined {
+    const playerPtr = this.ptr.add(0x1E0).readPointer()
+    if (Utils.isInvalidPtr(playerPtr)) return
+
+    return new Player(playerPtr)
+  }
 }
 
 class VehicleEntity extends FrostByteClass {
@@ -369,14 +383,36 @@ let benchmarkCount = 0
 let skippedFrames = 0
 let heartBeat = Date.now()
 
-function continueRender () {
+function continueRender (...args: Parameters<typeof render>) {
   benchmarkCount++
   const wait = Math.max(/* 1000ms / 144 = ~6*/ 6 - (Date.now() - heartBeat), 0)
   skippedFrames += wait
-  setTimeout(render, wait)
+  setTimeout(() => render(...args), wait)
 }
 
-function render () {
+function spot (player: Player) {
+  const entity = player.entity
+  if (!entity || Utils.isInvalidPtr(entity.ptr)) return
+  
+  const spotType = entity.spotType
+    if (!spotType || spotType === 'active') return entity
+  entity.spotType = 'active'
+  
+  console.log(spotType, '-> active [', player.name, entity instanceof VehicleEntity ? `: ${entity.vehicleName} ]` : ']')
+  return entity
+}
+
+function paintTarget (player: Player) {
+  const aimTarget = player.soldier?.weapon?.targetEntity
+  if (aimTarget && aimTarget instanceof SoldierEntity) {
+    if (!aimTarget.player || aimTarget.player.teamId === player.teamId) return
+    if (aimTarget.renderFlags === 4) return aimTarget
+    aimTarget.renderFlags = 4
+    return aimTarget
+  }
+}
+
+function render (paintedTarget?: SoldierEntity): void {
   const throttle = Date.now() 
   heartBeat = throttle
 
@@ -389,26 +425,28 @@ function render () {
     return continueRender()
   }
 
-  const localTeamId = game.playerLocal.teamId
+  const playerLocal = game.playerLocal
+  const localTeamId = playerLocal.teamId
   const players = game.players
   const activeEntities: Array<SoldierEntity | VehicleEntity> = []
 
   for (const player of players) {
     if (Utils.isInvalidPtr(player.ptr)) continue
     if (localTeamId === player.teamId) continue
-    
-    const entity = player.entity
-    if (!entity || Utils.isInvalidPtr(entity.ptr)) continue
-    
-    activeEntities.push(entity)
-    const spotType = entity.spotType
-    
-    if (!spotType || spotType === 'active') continue   
-    entity.spotType = 'active'
-    
-    console.log(spotType, '-> active [', player.name, entity instanceof VehicleEntity ? `: ${entity.vehicleName} ]` : ']')
+
+    const spotted = spot(player)
+    if (spotted) activeEntities.push(spotted)
   }
 
+  const painted = paintTarget(playerLocal)
+  if (!painted && paintedTarget) {
+    paintedTarget.renderFlags = 0
+  }
+
+  if (painted) {
+    if (paintedTarget && paintedTarget.ptr.toString() !== paintedTarget.ptr.toString()) paintedTarget.renderFlags = 0
+    paintedTarget = painted
+  }
 
   if (game.isScreenShotting) {
     screenShotHappening = true
@@ -417,10 +455,12 @@ function render () {
     for (const entity of activeEntities) {
       entity.spotType = 'none'
     }
-    
+
+    if (paintedTarget) paintedTarget.renderFlags = 0
+    return continueRender()
   }
 
-  continueRender()
+  continueRender(paintedTarget)
 }
 
 setInterval(() => {
