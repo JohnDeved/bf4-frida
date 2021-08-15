@@ -92,7 +92,7 @@ class Vec3 {
     return this.ptr.add(0x8).readFloat()
   }
 
-  toArray () {
+  toArray (): [x: number, y: number, z: number] {
     return [this.x, this.y, this.z]
   }
 
@@ -212,6 +212,20 @@ class SoldierEntity extends FrostByteClass {
     if (Utils.isInvalidPtr(playerPtr)) return
 
     return new Player(playerPtr)
+  }
+
+  get predictionPtr () {
+    const predictionPtr = this.ptr.add(0x0490).readPointer()
+    if (Utils.isInvalidPtr(predictionPtr)) return
+
+    return predictionPtr
+  }
+
+  get pos () {
+    const posPtr = this.predictionPtr?.add(0x30)
+    if (Utils.isInvalidPtr(posPtr)) return
+
+    return new Vec3(posPtr)
   }
 }
 
