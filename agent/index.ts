@@ -1,7 +1,5 @@
 import chalk from 'chalk'
 
-const spottingCache: {[key: string]: string | undefined} = {}
-
 enum SpottingEnum {
   none,
   active,
@@ -10,8 +8,10 @@ enum SpottingEnum {
   unspottable,
 }
 
-
 class Utils {
+  static spottingCache: {[key: string]: string | undefined} = {}
+  static classHeadCache: {[key: string]: string | undefined} = {}
+
   static isValidPtr (ptr?: NativePointer): ptr is NativePointer {
     if (!ptr) return false
 
@@ -28,11 +28,10 @@ class Utils {
     return !this.isValidPtr(ptr)
   }
 
-  static getClassInfoPtr (ptr: NativePointer) {
-    const code = ptr.readPointer()
-    if (Utils.isInvalidPtr(code)) return
+  static getClassInfoPtr (headPtr: NativePointer) {
+    if (Utils.isInvalidPtr(headPtr)) return
 
-    const classInfoCode = code.readPointer()
+    const classInfoCode = headPtr.readPointer()
     if (Utils.isInvalidPtr(classInfoCode)) return
 
     const classInfo = classInfoCode.add(classInfoCode.add(0x3).readU32() + 0x7)
@@ -42,13 +41,25 @@ class Utils {
   }
 
   static getClassName (ptr: NativePointer) {
-    const classInfo = this.getClassInfoPtr(ptr)
-    if (!classInfo || Utils.isInvalidPtr(classInfo)) return
+    const headPtr = ptr.readPointer()
+    if (Utils.isInvalidPtr(headPtr)) return
+
+    const headPtrAddress = headPtr.toString()
+    const cache = this.classHeadCache[headPtrAddress]
+    if (cache) return cache
+
+    const classInfo = this.getClassInfoPtr(headPtr)
+    if (Utils.isInvalidPtr(classInfo)) return
 
     const memberInfo = classInfo.readPointer()
     if (Utils.isInvalidPtr(memberInfo)) return
 
-    return memberInfo.readPointer().readCString()
+    const className = memberInfo.readPointer().readCString()
+    if (!className) return
+
+    console.log(chalk.green('[info]: cached', headPtrAddress, '->', className))
+    this.classHeadCache[headPtrAddress] = className
+    return className
   }
 }
 
@@ -59,7 +70,6 @@ class FrostByteClass {
     return Utils.getClassName(this.ptr)
   }
 }
-
 
 class SoldierEntity extends FrostByteClass {
   get spotType () {
@@ -105,26 +115,26 @@ class VehicleEntity extends FrostByteClass {
 
         if (Utils.getClassName(checkPtr) === 'ClientSpottingTargetComponent') {
           if (this.path !== path) {
-            console.log(chalk.red('!!! vehicle class did not match'))
+            console.log(chalk.red('[error]: vehicle class did not match'))
             return
           }
   
           const offsetHex = index.toString(16)
-          console.log(chalk.green('offset for', path, 'found at', offsetHex))
-          spottingCache[path] = `0x${offsetHex}`
-          return spottingCache[path]
+          console.log(chalk.green('[info]: offset for', path, 'found at', offsetHex))
+          Utils.spottingCache[path] = `0x${offsetHex}`
+          return Utils.spottingCache[path]
         }
       } catch (e) {
         continue
       }
     }
-    console.log(chalk.red('!!! offset not found for', path))
+    console.log(chalk.red('[error]: offset not found for', path))
   }
 
   private getSpottingOffsetCache () {
     const path = this.path
     if (!path) return
-    let offset = spottingCache[path]
+    let offset = Utils.spottingCache[path]
     if (!offset) offset = this.findSpottingOffset(path)
     return offset
   }
@@ -174,7 +184,7 @@ class Player {
     const entityPtr = this.entityPtr
     if (Utils.isInvalidPtr(entityPtr)) return
 
-    return entityPtr.readU64().toNumber() === 0x141D3D200 // vehicle head ptr
+    return Utils.getClassName(entityPtr) === 'ClientVehicleEntity'
   }
 
   get isOnFoot () {
@@ -182,7 +192,7 @@ class Player {
     const entityPtr = this.entityPtr
     if (Utils.isInvalidPtr(entityPtr)) return
 
-    return entityPtr.readU64().toNumber() === 0x141E600C0 // soldier head ptr
+    return Utils.getClassName(entityPtr) === 'ClientSoldierEntity'
   }
 
   get name () {
@@ -248,7 +258,7 @@ class Game {
     for (let i = 0; i <= 64; i++) {
       const playerPtr = playersPtr.add(i * 0x8).readPointer()
 
-      if (!Utils.isInvalidPtr(playerPtr)) {
+      if (Utils.isValidPtr(playerPtr)) {
         players.push(new Player(playerPtr))
       }
     }
@@ -277,7 +287,7 @@ function render () {
 
   if (screenShotHappening) {
     if (!game.isScreenShotting) {
-      console.log(chalk.yellow('!!! screenshot done'))
+      console.log(chalk.yellow('[info]: screenshot done'))
       screenShotHappening = false
     }
 
@@ -301,13 +311,13 @@ function render () {
     if (!spotType || spotType === 'active') continue   
     entity.spotType = 'active'
     
-    console.log(spotType, '=> active [', player.name, entity instanceof VehicleEntity ? `: ${entity.vehicleName} ]` : ']')
+    console.log(spotType, '-> active [', player.name, entity instanceof VehicleEntity ? `: ${entity.vehicleName} ]` : ']')
   }
 
 
   if (game.isScreenShotting) {
     screenShotHappening = true
-    console.log(chalk.yellow('!!! screenshot cleanup'))
+    console.log(chalk.yellow('[info]: screenshot cleanup'))
 
     for (const entity of activeEntities) {
       entity.spotType = 'none'
@@ -324,7 +334,7 @@ setInterval(() => {
   skippedFrames = 0
 
   if (heartBeat + 1000 <= Date.now()) {
-    console.log(chalk.red('restoring'))
+    console.log(chalk.red('[error]: restoring main loop'))
     render()
   }
 }, 1000)
