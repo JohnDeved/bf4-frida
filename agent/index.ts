@@ -436,7 +436,8 @@ function render (paintedTarget?: SoldierEntity): void {
       screenShotHappening = false
     }
 
-    return continueRender()
+    continueRender()
+    return
   }
 
   const playerLocal = game.playerLocal
@@ -455,10 +456,14 @@ function render (paintedTarget?: SoldierEntity): void {
   const painted = paintTarget(playerLocal)
   if (!painted && paintedTarget) {
     paintedTarget.renderFlags = 0
-  }
-
-  if (painted) {
-    if (paintedTarget && paintedTarget.ptr.toString() !== paintedTarget.ptr.toString()) paintedTarget.renderFlags = 0
+    paintedTarget = undefined
+  } else if (painted) {
+    if (paintedTarget) { 
+      // if is new paint target, set old target to 0
+      if (paintedTarget.ptr.toString() !== paintedTarget.ptr.toString()) {
+        paintedTarget.renderFlags = 0
+      }
+    }
     paintedTarget = painted
   }
 
@@ -471,7 +476,8 @@ function render (paintedTarget?: SoldierEntity): void {
     }
 
     if (paintedTarget) paintedTarget.renderFlags = 0
-    return continueRender()
+    continueRender()
+    return
   }
 
   continueRender(paintedTarget)
