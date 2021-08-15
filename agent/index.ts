@@ -12,12 +12,19 @@ enum SpottingEnum {
 
 
 class Utils {
-  static isValidPtr (ptr: NativePointer) {
-    const address = ptr.toUInt32()
-    return !ptr.isNull() && address > 0x10000 && address < 0x000F000000000000
+  static isValidPtr (ptr?: NativePointer): ptr is NativePointer {
+    if (!ptr) return false
+
+    try {
+      void ptr.readU8()
+    } catch {
+      return false
+    }
+    
+    return !ptr.isNull()
   }
 
-  static isInvalidPtr (ptr: NativePointer) {
+  static isInvalidPtr (ptr?: NativePointer): ptr is undefined {
     return !this.isValidPtr(ptr)
   }
 
@@ -163,6 +170,7 @@ class Player {
   constructor (public ptr: NativePointer) {}
 
   get isInVehicle () {
+    if (Utils.isInvalidPtr(this.ptr)) return
     const entityPtr = this.entityPtr
     if (Utils.isInvalidPtr(entityPtr)) return
 
@@ -170,6 +178,7 @@ class Player {
   }
 
   get isOnFoot () {
+    if (Utils.isInvalidPtr(this.ptr)) return
     const entityPtr = this.entityPtr
     if (Utils.isInvalidPtr(entityPtr)) return
 
@@ -177,14 +186,17 @@ class Player {
   }
 
   get name () {
+    if (Utils.isInvalidPtr(this.ptr)) return
     return this.ptr.add(0x40).readCString()
   }
 
   get teamId () {
+    if (Utils.isInvalidPtr(this.ptr)) return
     return this.ptr.add(0x13CC).readUInt()
   }
 
   get entityPtr () {
+    if (Utils.isInvalidPtr(this.ptr)) return
     return this.ptr.add(0x14D0).readPointer()
   }
 
