@@ -261,12 +261,19 @@ const game = new Game()
 
 let screenShotHappening = false
 let benchmarkCount = 0
+let skippedFrames = 0
 let heartBeat = Date.now()
+
+function continueRender () {
+  benchmarkCount++
+  const wait = Math.max(/* 1000ms / 144 = ~6*/ 6 - (Date.now() - heartBeat), 0)
+  skippedFrames += wait
+  setTimeout(render, wait)
+}
 
 function render () {
   const throttle = Date.now() 
   heartBeat = throttle
-  benchmarkCount++
 
   if (screenShotHappening) {
     if (!game.isScreenShotting) {
@@ -274,8 +281,7 @@ function render () {
       screenShotHappening = false
     }
 
-    setTimeout(render, /* 1000ms / 144 = ~6*/ Math.max(6 - (Date.now() - throttle)))
-    return
+    return continueRender()
   }
 
   const localTeamId = game.playerLocal.teamId
@@ -309,12 +315,13 @@ function render () {
     
   }
 
-  setTimeout(render, /* 1000ms / 144 = ~6*/ Math.max(6 - (Date.now() - throttle), 0))
+  continueRender()
 }
 
 setInterval(() => {
-  console.log(chalk.gray('running at', benchmarkCount, 'fps'))
+  console.log(chalk.gray('running at', benchmarkCount, '/', benchmarkCount + skippedFrames, 'fps'))
   benchmarkCount = 0
+  skippedFrames = 0
 
   if (heartBeat + 1000 <= Date.now()) {
     console.log(chalk.red('restoring'))
