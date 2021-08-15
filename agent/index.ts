@@ -428,10 +428,6 @@ setInterval(() => {
   benchmarkCount = 0
   skippedFrames = 0
 
-  console.log(game.playerLocal.soldier?.weapon?.name)
-  console.log(game.playerLocal.soldier?.weapon?.targetEntity?.className)
-  console.log(game.playerLocal.soldier?.weapon?.targetPos)
-
   if (heartBeat + 1000 <= Date.now()) {
     console.log(chalk.red('[error]: restoring main loop'))
     render()
