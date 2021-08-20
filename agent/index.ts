@@ -11,6 +11,7 @@ enum SpottingEnum {
 class Utils {
   static spottingCache: {[key: string]: string | undefined} = {}
   static classHeadCache: {[key: string]: string | undefined} = {}
+  static classInfoCache: {[key: string]: NativePointer | undefined} = {}
   static weaponSwayCache: {[key: string]: [number, number, number, number] | undefined} = {}
   static weaponSwayModifiedCache: {[key: string]: boolean | undefined} = {}
 
@@ -42,7 +43,7 @@ class Utils {
     return classInfo
   }
 
-  static getClassName (ptr: NativePointer) {
+  static getClassNameByHeader (ptr: NativePointer) {
     const headPtr = ptr.readPointer()
     if (Utils.isInvalidPtr(headPtr)) return
 
@@ -59,15 +60,59 @@ class Utils {
     const className = memberInfo.readPointer().readCString()
     if (!className) return
 
-    console.log(chalk.green('[info]: cached', headPtrAddress, '->', className))
+    console.log(chalk.green('[info]: cached headPtr', headPtrAddress, '->', className))
     this.classHeadCache[headPtrAddress] = className
+
+    if (!this.classInfoCache[className]) {
+      console.log(chalk.green('[info]: cached classInfo', className, '->', classInfo.toString()))
+      this.classInfoCache[className] = classInfo
+    }
+
     return className
+  }
+
+  static findClassInfoByName (className: string) {
+    const cache = this.classInfoCache[className]
+    if (cache) return cache
+
+    let counter = 0
+    for (let currentClass = ptr(0x1423e41b8).readPointer(); !Utils.isInvalidPtr(currentClass); currentClass = currentClass.add(0x8).readPointer()) {
+      const currentMember = currentClass.readPointer()
+      if (Utils.isInvalidPtr(currentMember)) continue
+    
+      const currentMemberNamePtr = currentMember.readPointer()
+      if (Utils.isInvalidPtr(currentMemberNamePtr)) continue
+    
+      const currentMemberName = currentMemberNamePtr.readCString()
+
+      if (!currentMemberName) continue
+      if (!this.classInfoCache[currentMemberName]) {
+        counter++
+        this.classInfoCache[currentMemberName] = currentClass
+      }
+      
+      if (currentMemberName === className) {
+        
+        console.log(chalk.green('[info]: cached', counter, 'classInfo pointers'))
+        return currentClass
+      }
+    }
+  }
+
+  static getFirstInstanceOf (className: string) {
+    const classInfo = this.findClassInfoByName(className)
+    if (Utils.isInvalidPtr(classInfo)) return
+
+    const firstInstancePtr = classInfo.add(0x60).readPointer().sub(0x40)
+    if (Utils.isInvalidPtr(firstInstancePtr)) return
+
+    return this.autoEntity(firstInstancePtr)
   }
 
   static autoEntity (entityPtr?: NativePointer): SoldierEntity | VehicleEntity | undefined {
     if (Utils.isInvalidPtr(entityPtr)) return
 
-    const className = Utils.getClassName(entityPtr)
+    const className = Utils.getClassNameByHeader(entityPtr)
 
     if (className === 'ClientSoldierEntity') {
       return new SoldierEntity(entityPtr)
@@ -107,7 +152,14 @@ class FrostByteClass {
   constructor (public ptr: NativePointer) {}
 
   get className () {
-    return Utils.getClassName(this.ptr)
+    return Utils.getClassNameByHeader(this.ptr)
+  }
+
+  get nextInstance (): SoldierEntity | VehicleEntity | undefined {
+    const nextInstancePtr = this.ptr.add(0x40).readPointer().sub(0x40)
+    if (Utils.isInvalidPtr(nextInstancePtr)) return
+
+    return Utils.autoEntity(nextInstancePtr)
   }
 }
 
@@ -388,7 +440,7 @@ class VehicleEntity extends FrostByteClass {
         const checkPtr = this.ptr.add(index).readPointer()
         if (Utils.isInvalidPtr(checkPtr)) continue
 
-        if (Utils.getClassName(checkPtr) === 'ClientSpottingTargetComponent') {
+        if (Utils.getClassNameByHeader(checkPtr) === 'ClientSpottingTargetComponent') {
           if (this.path !== path) {
             console.log(chalk.red('[error]: vehicle class did not match'))
             return
@@ -457,7 +509,7 @@ class Player {
     const entityPtr = this.entityPtr
     if (Utils.isInvalidPtr(entityPtr)) return
 
-    return Utils.getClassName(entityPtr) === 'ClientVehicleEntity'
+    return Utils.getClassNameByHeader(entityPtr) === 'ClientVehicleEntity'
   }
 
   get isOnFoot () {
@@ -465,7 +517,7 @@ class Player {
     const entityPtr = this.entityPtr
     if (Utils.isInvalidPtr(entityPtr)) return
 
-    return Utils.getClassName(entityPtr) === 'ClientSoldierEntity'
+    return Utils.getClassNameByHeader(entityPtr) === 'ClientSoldierEntity'
   }
 
   get name () {
@@ -570,13 +622,13 @@ function paintTarget (player: Player) {
   const aimTarget = player.soldier?.weapon?.targetEntity
   if (aimTarget && aimTarget instanceof SoldierEntity) {
     if (!aimTarget.player || aimTarget.player.teamId === player.teamId) return
-    if (aimTarget.renderFlags === 4) return aimTarget
-    aimTarget.renderFlags = 4
+    if (aimTarget.renderFlags === 5) return aimTarget
+    aimTarget.renderFlags = 5
     return aimTarget
   }
 }
 
-function render (paintedTarget?: SoldierEntity): void {
+function render (): void {
   const throttle = Date.now() 
   heartBeat = throttle
 
@@ -593,7 +645,33 @@ function render (paintedTarget?: SoldierEntity): void {
   const playerLocal = game.playerLocal
   const localTeamId = playerLocal.teamId
   const players = game.players
+  const playerLocalWeapon = playerLocal.soldier?.weapon
+  const playerLocalWeaponName = playerLocalWeapon?.name
   const activeEntities: Array<SoldierEntity | VehicleEntity> = []
+  const paintedTargets: SoldierEntity[] = []
+  const painted = paintTarget(playerLocal)
+
+  const sway = playerLocalWeapon?.getWeaponSway
+  if (sway && playerLocalWeaponName) {
+
+    let isModified = Utils.weaponSwayModifiedCache[playerLocalWeaponName]
+    if (!isModified) {
+      Utils.weaponSwayModifiedCache[playerLocalWeaponName] = false
+      isModified = false
+    }
+
+    if (painted) {
+      if (!isModified) {
+        sway.data = [0.2,0.2,0.2,0.2]
+        sway.isModified = true
+      }
+    } else {
+      if (isModified) {
+        sway.reset()
+        sway.isModified = false
+      }
+    }
+  }
 
   for (const player of players) {
     if (Utils.isInvalidPtr(player.ptr)) continue
@@ -601,33 +679,31 @@ function render (paintedTarget?: SoldierEntity): void {
 
     const spotted = spot(player)
     if (spotted) activeEntities.push(spotted)
-  }
 
-  const painted = paintTarget(playerLocal)
-  if (!painted && paintedTarget) {
-    paintedTarget.renderFlags = 0
-    paintedTarget = undefined
-  } else if (painted) {
-    if (paintedTarget) { 
-      // if is new paint target, set old target to 0
-      if (paintedTarget.ptr.toString() !== paintedTarget.ptr.toString()) {
-        paintedTarget.renderFlags = 0
-      }
-    }
-    paintedTarget = painted
-  }
+    if (playerLocalWeaponName === 'Knife') {
+      const soldier = player.soldier
+      if (!soldier) continue
+      const renderFlags = soldier.renderFlags
 
-  const sway = playerLocal.soldier?.weapon?.getWeaponSway
-  if (sway) {
-    if (painted) {
-      if (!sway.isModified) {
-        sway.data = [0.2,0.2,0.2,0.2]
-        sway.isModified = true
+      if (renderFlags !== 5) {
+        soldier.renderFlags = 5
       }
+
+      paintedTargets.push(soldier)
     } else {
-      if (sway.isModified) {
-        sway.reset()
-        sway.isModified = false
+
+    }
+  }
+
+  if (playerLocalWeaponName !== 'Knife') {
+    for (let instance = Utils.getFirstInstanceOf('ClientSoldierEntity'); Utils.isValidPtr(instance?.ptr); instance = instance?.nextInstance) {
+      if (instance instanceof SoldierEntity) {
+        if (painted && instance.ptr.equals(painted.ptr)) continue
+        const renderFlags = instance.renderFlags
+  
+        if (renderFlags === 5) {
+          instance.renderFlags = 0
+        }
       }
     }
   }
@@ -640,12 +716,18 @@ function render (paintedTarget?: SoldierEntity): void {
       entity.spotType = 'none'
     }
 
-    if (paintedTarget) paintedTarget.renderFlags = 0
+    for (const entity of paintedTargets) {
+      if (entity.renderFlags === 5) {
+        entity.renderFlags = 0
+      }
+    }
+
+    if (painted) painted.renderFlags = 0
     continueRender()
     return
   }
 
-  continueRender(paintedTarget)
+  continueRender()
 }
 
 setInterval(() => {
@@ -662,16 +744,10 @@ setInterval(() => {
 
 render()
 
-// for (let currentClass = ptr(0x1423e41b8).readPointer(); !Utils.isInvalidPtr(currentClass); currentClass = currentClass.add(0x8).readPointer()) {
-//   const currentMember = currentClass.readPointer()
-//   if (Utils.isInvalidPtr(currentMember)) continue
 
-//   const currentMemberNamePtr = currentMember.readPointer()
-//   if (Utils.isInvalidPtr(currentMemberNamePtr)) continue
-
-//   const currentMemberName = currentMemberNamePtr.readCString()
-
-//   if (currentMemberName?.includes('Simulation')) {
-//     console.log(currentMemberName, currentClass.toString(16))
+// console.log(game.playerLocal.entity?.className)
+// for (let instance = Utils.getFirstInstanceOf('ClientVehicleEntity'); Utils.isValidPtr(instance?.ptr); instance = instance?.nextInstance) {
+//   if (instance instanceof VehicleEntity) {
+//     console.log(instance.vehicleName)
 //   }
 // }
