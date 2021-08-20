@@ -11,6 +11,8 @@ enum SpottingEnum {
 class Utils {
   static spottingCache: {[key: string]: string | undefined} = {}
   static classHeadCache: {[key: string]: string | undefined} = {}
+  static weaponSwayCache: {[key: string]: [number, number, number, number] | undefined} = {}
+  static weaponSwayModifiedCache: {[key: string]: boolean | undefined} = {}
 
   static isValidPtr (ptr?: NativePointer): ptr is NativePointer {
     if (!ptr) return false
@@ -109,6 +111,117 @@ class FrostByteClass {
   }
 }
 
+class WeaponSway {
+  constructor (public ptr: NativePointer, private weaponName: string) {
+    const cache = Utils.weaponSwayCache[this.weaponName]
+    if (cache) return
+
+    Utils.weaponSwayCache[this.weaponName] = this.data
+    console.log(chalk.green('[info]: cached SwayData', this.weaponName, '->', this.data))
+  }
+
+  get isModified () {
+    let cache = Utils.weaponSwayModifiedCache[this.weaponName]
+    if (cache) return cache
+
+    Utils.weaponSwayModifiedCache[this.weaponName] = false
+    return false
+  }
+
+  set isModified (value: boolean) {
+    Utils.weaponSwayModifiedCache[this.weaponName] = value
+  }
+
+  get getWeaponSwayDataPtr () {
+    const weaponSwayDataPtr = this.ptr.add(0x8).readPointer()
+    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return
+
+    return weaponSwayDataPtr
+  }
+
+  get deviationZoom () {
+    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x430)
+    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return 1
+
+    return weaponSwayDataPtr.readFloat()
+  }
+
+  set deviationZoom (value: number) {
+    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x430)
+    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return
+
+    weaponSwayDataPtr.writeFloat(value)
+  }
+
+  get gameplayDeviationZoom () {
+    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x434)
+    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return 1
+
+    return weaponSwayDataPtr.readFloat()
+  }
+  
+  set gameplayDeviationZoom (value: number) {
+    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x434)
+    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return
+
+    weaponSwayDataPtr.writeFloat(value)
+  }
+
+  get deviationNoZoom () {
+    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x438)
+    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return 1
+
+    return weaponSwayDataPtr.readFloat()
+  }  
+  
+  set deviationNoZoom (value: number) {
+    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x438)
+    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return
+
+    weaponSwayDataPtr.writeFloat(value)
+  }
+
+  get gameplayDeviationNoZoom () {
+    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x43C)
+    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return 1
+
+    return weaponSwayDataPtr.readFloat()
+  }
+
+  set gameplayDeviationNoZoom (value: number) {
+    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x43C)
+    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return
+
+    weaponSwayDataPtr.writeFloat(value)
+  }
+
+  get data (): [number, number, number, number] {
+    return [
+      this.deviationZoom,
+      this.gameplayDeviationZoom,
+      this.deviationNoZoom,
+      this.gameplayDeviationNoZoom,
+    ]
+  }
+
+  set data (value: [number, number, number, number]) {
+    this.deviationZoom = value[0]
+    this.gameplayDeviationZoom = value[1]
+    this.deviationNoZoom = value[2]
+    this.gameplayDeviationNoZoom = value[3]
+  }
+
+  reset () {
+    const cache = Utils.weaponSwayCache[this.weaponName]
+
+    if (cache) {
+      return this.data = cache
+    }
+
+    console.log(chalk.red('[error]: no SwayData cache found for', this.weaponName))
+    this.data = [1, 1, 1, 1]
+  }
+}
 class Weapon extends FrostByteClass {
   get handler () {
     const handlerPtr = this.ptr.add(0x890).readPointer()
@@ -158,6 +271,43 @@ class Weapon extends FrostByteClass {
     if (Utils.isInvalidPtr(targetPos)) return
 
     return new Vec3(targetPos)
+  }
+
+  get weaponFiringPtr () {
+    const weaponFiringPtr = this.weaponPtr?.add(0x49C0).readPointer()
+    if (Utils.isInvalidPtr(weaponFiringPtr)) return
+
+    return weaponFiringPtr
+  }
+
+  get getWeaponSwayPtr () {
+    const weaponSwayPtr = this.weaponFiringPtr?.add(0x78).readPointer()
+    if (Utils.isInvalidPtr(weaponSwayPtr)) return
+
+    return weaponSwayPtr
+  }
+
+  get getWeaponSway () {
+    const weaponSwayPtr = this.getWeaponSwayPtr
+    const weaponName = this.name
+
+    if (weaponSwayPtr && weaponName) {
+      return new WeaponSway(weaponSwayPtr, weaponName)
+    }
+  }
+
+  get bulletsInMagazine () {
+    const bulletsInMagazinePtr = this.weaponFiringPtr?.add(0x1A0)
+    if (Utils.isInvalidPtr(bulletsInMagazinePtr)) return
+
+    return bulletsInMagazinePtr.readU32()
+  }
+
+  get bulletsInReserve () {
+    const bulletsInReservePtr = this.weaponFiringPtr?.add(0x1A4)
+    if (Utils.isInvalidPtr(bulletsInReservePtr)) return
+
+    return bulletsInReservePtr.readU32()
   }
 }
 
@@ -465,6 +615,21 @@ function render (paintedTarget?: SoldierEntity): void {
       }
     }
     paintedTarget = painted
+  }
+
+  const sway = playerLocal.soldier?.weapon?.getWeaponSway
+  if (sway) {
+    if (painted) {
+      if (!sway.isModified) {
+        sway.data = [0.2,0.2,0.2,0.2]
+        sway.isModified = true
+      }
+    } else {
+      if (sway.isModified) {
+        sway.reset()
+        sway.isModified = false
+      }
+    }
   }
 
   if (game.isScreenShotting) {
