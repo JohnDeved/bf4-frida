@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {    
+  "scripts": {
     "start": "ts-node index",
-    "prepare": "npm run build",
     "build": "frida-compile agent/index.ts -o _agent.js -c",
     "watch": "frida-compile agent/index.ts -o _agent.js -w",
     "dev": "frida -n bf4.exe -l _agent.js"
