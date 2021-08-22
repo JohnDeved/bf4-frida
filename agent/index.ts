@@ -653,20 +653,13 @@ function render (): void {
 
   const sway = playerLocalWeapon?.getWeaponSway
   if (sway && playerLocalWeaponName) {
-
-    let isModified = Utils.weaponSwayModifiedCache[playerLocalWeaponName]
-    if (!isModified) {
-      Utils.weaponSwayModifiedCache[playerLocalWeaponName] = false
-      isModified = false
-    }
-
     if (painted) {
-      if (!isModified) {
+      if (!sway.isModified) {
         sway.data = [0.2,0.2,0.2,0.2]
         sway.isModified = true
       }
     } else {
-      if (isModified) {
+      if (sway.isModified) {
         sway.reset()
         sway.isModified = false
       }
@@ -690,8 +683,6 @@ function render (): void {
       }
 
       paintedTargets.push(soldier)
-    } else {
-
     }
   }
 
@@ -699,9 +690,8 @@ function render (): void {
     for (let instance = Utils.getFirstInstanceOf('ClientSoldierEntity'); Utils.isValidPtr(instance?.ptr); instance = instance?.nextInstance) {
       if (instance instanceof SoldierEntity) {
         if (painted && instance.ptr.equals(painted.ptr)) continue
-        const renderFlags = instance.renderFlags
   
-        if (renderFlags === 5) {
+        if (instance.renderFlags === 5) {
           instance.renderFlags = 0
         }
       }
