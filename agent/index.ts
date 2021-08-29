@@ -363,7 +363,25 @@ class Weapon extends FrostByteClass {
   }
 }
 
-class SoldierEntity extends FrostByteClass {
+class ControllableEntity extends FrostByteClass {
+  
+  get allowRenderTroughWalls () {
+    const allowRenderTroughWallsPtr = this.ptr.add(0xA1)
+    if (Utils.isInvalidPtr(allowRenderTroughWallsPtr)) return
+
+    return Boolean(allowRenderTroughWallsPtr.readU8())
+  }
+
+  set allowRenderTroughWalls (value: boolean | undefined) {
+    if (typeof value === 'undefined') return
+    const allowRenderTroughWallsPtr = this.ptr.add(0x1A)
+    if (Utils.isInvalidPtr(allowRenderTroughWallsPtr)) return
+
+    allowRenderTroughWallsPtr.writeU8(Number(value))
+  }
+}
+
+class SoldierEntity extends ControllableEntity {
   get spotType () {
     const spotTypePtr = this.ptr.add(0xBF0).readPointer().add(0x50)
     if (Utils.isInvalidPtr(spotTypePtr)) return
@@ -431,7 +449,7 @@ class SoldierEntity extends FrostByteClass {
   }
 }
 
-class VehicleEntity extends FrostByteClass {
+class VehicleEntity extends ControllableEntity {
   private findSpottingOffset (path: string) {
     for (let index = 0x510; index <= 0xD80; index += 0x8) {
       try {
@@ -499,6 +517,11 @@ class VehicleEntity extends FrostByteClass {
 
     spotTypePtr.writeU8(SpottingEnum[value])
   }
+
+  // vehicle render flag offset: 0x4D2 (uint32)
+  // visible: 200
+  // invisible: 300
+  // glow: 400
 }
 
 class Player {
@@ -680,6 +703,7 @@ function render (): void {
 
       if (renderFlags !== 5) {
         soldier.renderFlags = 5
+        soldier.allowRenderTroughWalls = true        
       }
 
       paintedTargets.push(soldier)
@@ -733,11 +757,3 @@ setInterval(() => {
 
 
 render()
-
-
-// console.log(game.playerLocal.entity?.className)
-// for (let instance = Utils.getFirstInstanceOf('ClientVehicleEntity'); Utils.isValidPtr(instance?.ptr); instance = instance?.nextInstance) {
-//   if (instance instanceof VehicleEntity) {
-//     console.log(instance.vehicleName)
-//   }
-// }
