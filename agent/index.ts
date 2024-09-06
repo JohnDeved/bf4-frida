@@ -10,7 +10,7 @@ enum SpottingEnum {
 }
 
 class Utils {
-  static spottingCache: {[key: string]: string | undefined} = {}
+  static spottingCache: {[key: string]: string | null | undefined} = {}
   static classHeadCache: {[key: string]: string | undefined} = {}
   static classInfoCache: {[key: string]: NativePointer | undefined} = {}
   static weaponSwayCache: {[key: string]: [number, number, number, number] | undefined} = {}
@@ -266,13 +266,15 @@ class WeaponSway {
   }
 
   getDefaultData (): [number, number, number, number] {
-    const cache = Utils.weaponSwayCache[this.weaponName]
+    // const cache = Utils.weaponSwayCache[this.weaponName]
 
-    if (cache) {
-      return cache
-    }
+    // if (cache) {
+    //   return cache
+    // }
 
-    console.log(color.red('[error]: no SwayData cache found for', this.weaponName))
+    // console.log(color.red('[error]: no SwayData cache found for', this.weaponName))
+
+    // lets just assume the default is always the same
     return [1, 1, 1, 1]
   }
 
@@ -300,6 +302,12 @@ class Weapon extends FrostByteClass {
     if (Utils.isInvalidPtr(activeSlotPtr)) return
 
     return activeSlotPtr.readU32()
+  }
+
+  isPrimaryOrSecondary () {
+    const activeSlot = this.activeSlot
+    if (typeof activeSlot === 'undefined') return
+    if (activeSlot === 0 || activeSlot === 1) return true
   }
 
   get weaponPtr () {
@@ -464,6 +472,7 @@ class SoldierEntity extends ControllableEntity {
 
 class VehicleEntity extends ControllableEntity {
   private findSpottingOffset (path: string) {
+    if (Utils.spottingCache[path] === null) return
     for (let index = 0x510; index <= 0xD80; index += 0x8) {
       try {
         if (Utils.isInvalidPtr(this.ptr)) continue
@@ -486,6 +495,7 @@ class VehicleEntity extends ControllableEntity {
         continue
       }
     }
+    Utils.spottingCache[path] = null
     console.log(color.red('[error]: offset not found for', path))
   }
 
@@ -686,19 +696,22 @@ function render (): void {
   const activeEntities: Array<SoldierEntity | VehicleEntity> = []
   const paintedTargets: SoldierEntity[] = []
   const painted = paintTarget(playerLocal)
+  const isWeaponPrimaryOrSecondary = playerLocalWeapon?.isPrimaryOrSecondary()
 
-  const sway = playerLocalWeapon?.getWeaponSway
-  if (sway && playerLocalWeaponName) {
-    if (sway.isModified) {
-      if (sway.isDefaultData()) {
-        console.log(color.yellow('[info]: sway reset'))
-        sway.isModified = false
+  if (isWeaponPrimaryOrSecondary) {
+    const sway = playerLocalWeapon?.getWeaponSway
+    if (sway) {
+      if (sway.isModified) {
+        if (sway.isDefaultData()) {
+          console.log(color.yellow('[info]: sway reset'))
+          sway.isModified = false
+        }
       }
-    }
-
-    if (!sway.isModified) {
-      sway.data = [0.2,0.2,0.2,0.2]
-      sway.isModified = true
+  
+      if (!sway.isModified) {
+        sway.data = [0.4,0.4,0.4,0.4]
+        sway.isModified = true
+      }
     }
   }
 
