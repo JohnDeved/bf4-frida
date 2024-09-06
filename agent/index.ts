@@ -1,4 +1,5 @@
-import chalk from 'chalk'
+import { color } from './color.js'
+console.log(color.green('[info]: agent loaded'))
 
 enum SpottingEnum {
   none,
@@ -60,11 +61,11 @@ class Utils {
     const className = memberInfo.readPointer().readCString()
     if (!className) return
 
-    console.log(chalk.green('[info]: cached headPtr', headPtrAddress, '->', className))
+    console.log(color.green('[info]: cached headPtr', headPtrAddress, '->', className))
     this.classHeadCache[headPtrAddress] = className
 
     if (!this.classInfoCache[className]) {
-      console.log(chalk.green('[info]: cached classInfo', className, '->', classInfo.toString()))
+      console.log(color.green('[info]: cached classInfo', className, '->', classInfo.toString()))
       this.classInfoCache[className] = classInfo
     }
 
@@ -93,7 +94,7 @@ class Utils {
       
       if (currentMemberName === className) {
         
-        console.log(chalk.green('[info]: cached', counter, 'classInfo pointers'))
+        console.log(color.green('[info]: cached', String(counter), 'classInfo pointers'))
         return currentClass
       }
     }
@@ -169,7 +170,7 @@ class WeaponSway {
     if (cache) return
 
     Utils.weaponSwayCache[this.weaponName] = this.data
-    console.log(chalk.green('[info]: cached SwayData', this.weaponName, '->', this.data))
+    console.log(color.green('[info]: cached SwayData', this.weaponName, '->', String(this.data)))
   }
 
   get isModified () {
@@ -257,21 +258,33 @@ class WeaponSway {
   }
 
   set data (value: [number, number, number, number]) {
+    console.log(color.green('[info]: setting SwayData', this.weaponName, '->', String(value)))
     this.deviationZoom = value[0]
     this.gameplayDeviationZoom = value[1]
     this.deviationNoZoom = value[2]
     this.gameplayDeviationNoZoom = value[3]
   }
 
-  reset () {
+  getDefaultData (): [number, number, number, number] {
     const cache = Utils.weaponSwayCache[this.weaponName]
 
     if (cache) {
-      return this.data = cache
+      return cache
     }
 
-    console.log(chalk.red('[error]: no SwayData cache found for', this.weaponName))
-    this.data = [1, 1, 1, 1]
+    console.log(color.red('[error]: no SwayData cache found for', this.weaponName))
+    return [1, 1, 1, 1]
+  }
+
+  isDefaultData (): boolean {
+    const defaultData = this.getDefaultData()
+    const currentData = this.data
+
+    return defaultData.every((value, index) => value === currentData[index])
+  }
+
+  reset () {
+    this.data = this.getDefaultData()
   }
 }
 class Weapon extends FrostByteClass {
@@ -460,12 +473,12 @@ class VehicleEntity extends ControllableEntity {
 
         if (Utils.getClassNameByHeader(checkPtr) === 'ClientSpottingTargetComponent') {
           if (this.path !== path) {
-            console.log(chalk.red('[error]: vehicle class did not match'))
+            console.log(color.red('[error]: vehicle class did not match'))
             return
           }
   
           const offsetHex = index.toString(16)
-          console.log(chalk.green('[info]: offset for', path, 'found at', offsetHex))
+          console.log(color.green('[info]: offset for', path, 'found at', offsetHex))
           Utils.spottingCache[path] = `0x${offsetHex}`
           return Utils.spottingCache[path]
         }
@@ -473,7 +486,7 @@ class VehicleEntity extends ControllableEntity {
         continue
       }
     }
-    console.log(chalk.red('[error]: offset not found for', path))
+    console.log(color.red('[error]: offset not found for', path))
   }
 
   private getSpottingOffsetCache () {
@@ -624,7 +637,7 @@ let heartBeat = Date.now()
 
 function continueRender (...args: Parameters<typeof render>) {
   benchmarkCount++
-  const wait = Math.max(/* 1000ms / 144 = ~6*/ 6 - (Date.now() - heartBeat), 0)
+  const wait = Math.max(/* 1000ms / 144 = ~6*/ 5 - (Date.now() - heartBeat), 0)
   skippedFrames += wait
   setTimeout(() => render(...args), wait)
 }
@@ -657,7 +670,7 @@ function render (): void {
 
   if (screenShotHappening) {
     if (!game.isScreenShotting) {
-      console.log(chalk.yellow('[info]: screenshot done'))
+      console.log(color.yellow('[info]: screenshot done'))
       screenShotHappening = false
     }
 
@@ -676,16 +689,16 @@ function render (): void {
 
   const sway = playerLocalWeapon?.getWeaponSway
   if (sway && playerLocalWeaponName) {
-    if (painted) {
-      if (!sway.isModified) {
-        sway.data = [0.2,0.2,0.2,0.2]
-        sway.isModified = true
-      }
-    } else {
-      if (sway.isModified) {
-        sway.reset()
+    if (sway.isModified) {
+      if (sway.isDefaultData()) {
+        console.log(color.yellow('[info]: sway reset'))
         sway.isModified = false
       }
+    }
+
+    if (!sway.isModified) {
+      sway.data = [0.2,0.2,0.2,0.2]
+      sway.isModified = true
     }
   }
 
@@ -724,7 +737,7 @@ function render (): void {
 
   if (game.isScreenShotting) {
     screenShotHappening = true
-    console.log(chalk.yellow('[info]: screenshot cleanup'))
+    console.log(color.yellow('[info]: screenshot cleanup'))
 
     for (const entity of activeEntities) {
       entity.spotType = 'none'
@@ -745,12 +758,12 @@ function render (): void {
 }
 
 setInterval(() => {
-  console.log(chalk.gray('running at', benchmarkCount, '/', benchmarkCount + skippedFrames, 'fps'))
+  console.log(color.gray('running at', String(benchmarkCount), '/', String(benchmarkCount + skippedFrames), 'fps'))
   benchmarkCount = 0
   skippedFrames = 0
 
   if (heartBeat + 1000 <= Date.now()) {
-    console.log(chalk.red('[error]: restoring main loop'))
+    console.log(color.red('[error]: restoring main loop'))
     render()
   }
 }, 1000)

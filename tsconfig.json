@@ -1,13 +1,14 @@
 {
   "compilerOptions": {
-    "target": "es2020",
-    "lib": ["es2020"],
-    "moduleResolution": "node",
+    "target": "ES2023",
+    "lib": ["ES2023"],
     "allowSyntheticDefaultImports": true,
     "allowJs": true,
     "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "moduleResolution": "node"
   }
 }
