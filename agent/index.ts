@@ -15,8 +15,6 @@ class Utils {
   static classInfoCache: {[key: string]: NativePointer | undefined} = {}
   static weaponSwayCache: {[key: string]: [number, number, number, number] | undefined} = {}
   static weaponSwayModifiedCache: {[key: string]: boolean | undefined} = {}
-  static isValidPtrCache: Map<NativePointer, boolean> = new Map()
-  static readonly CACHE_THRESHOLD = 100000 // Set a threshold for the cache size
 
   static isValidPtr (ptr?: NativePointer): ptr is NativePointer {
     if (!ptr) return false
@@ -28,7 +26,7 @@ class Utils {
     } catch {
       isValid = false
     }
-    
+
     isValid = isValid && !ptr.isNull()
 
     return isValid
@@ -36,13 +34,6 @@ class Utils {
 
   static isInvalidPtr (ptr?: NativePointer): ptr is undefined {
     return !this.isValidPtr(ptr)
-  }
-
-  static checkCacheSize() {
-    if (this.isValidPtrCache.size > this.CACHE_THRESHOLD) {
-      this.isValidPtrCache.clear()
-      console.log(color.yellow('[info]: cleared cache'))
-    }
   }
 
   static getClassInfoPtr (headPtr: NativePointer) {
