@@ -1,3 +1,4 @@
+import { prop } from '../Helper/Decorators.js'
 import { Utils } from '../Helper/Utils.js'
 import { SoldierEntity } from './SoldierEntity.js'
 import { VehicleEntity } from './VehicleEntity.js'
@@ -5,8 +6,11 @@ import { VehicleEntity } from './VehicleEntity.js'
 export class Player {
   constructor (public ptr: NativePointer) { }
 
+  @prop(0x40, 'CString') accessor name: string | undefined
+  @prop(0x13CC, 'UInt') accessor teamId: number | undefined
+  @prop(0x14D0, 'Pointer') accessor entityPtr: NativePointer | undefined
+
   get isInVehicle () {
-    if (Utils.isInvalidPtr(this.ptr)) return
     const entityPtr = this.entityPtr
     if (Utils.isInvalidPtr(entityPtr)) return
 
@@ -14,26 +18,10 @@ export class Player {
   }
 
   get isOnFoot () {
-    if (Utils.isInvalidPtr(this.ptr)) return
     const entityPtr = this.entityPtr
     if (Utils.isInvalidPtr(entityPtr)) return
 
     return Utils.getClassNameByHeader(entityPtr) === 'ClientSoldierEntity'
-  }
-
-  get name () {
-    if (Utils.isInvalidPtr(this.ptr)) return
-    return this.ptr.add(0x40).readCString()
-  }
-
-  get teamId () {
-    if (Utils.isInvalidPtr(this.ptr)) return
-    return this.ptr.add(0x13CC).readUInt()
-  }
-
-  get entityPtr () {
-    if (Utils.isInvalidPtr(this.ptr)) return
-    return this.ptr.add(0x14D0).readPointer()
   }
 
   get entity () {

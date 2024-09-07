@@ -6,12 +6,12 @@ import { WeaponSway } from './WeaponSway.js'
 
 export class Weapon extends FrostByteClass {
   @prop(0xA98, 'U32') accessor activeSlot: number | undefined
-  @prop(['weaponPtr', 0x30, 0x130, 0x0], 'CString') accessor name: string | undefined
 
   @prop([0x890, ({ activeSlot }, handler) => {
     if (activeSlot !== undefined) return handler.add(activeSlot * 0x8)
   }], 'Pointer') accessor weaponPtr: NativePointer | undefined
 
+  @prop(['weaponPtr', 0x30, 0x130, 0x0], 'CString') accessor name: string | undefined
   @prop(['weaponPtr', 0x49C0, 0x1A0], 'U32') accessor bulletsInMagazine: number | undefined
   @prop(['weaponPtr', 0x49C0, 0x1A4], 'U32') accessor bulletsInReserve: number | undefined
   @prop(['weaponPtr', 0x49C0, 0x78], 'Pointer') accessor weaponSwayPtr: NativePointer | undefined

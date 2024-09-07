@@ -1,5 +1,6 @@
 import { SpottingEnum } from '../Enums/SpottingEnum.js'
 import { Color } from '../Helper/Color.js'
+import { prop } from '../Helper/Decorators.js'
 import { Utils } from '../Helper/Utils.js'
 import { ControllableEntity } from './ControllableEntity.js'
 
@@ -40,13 +41,8 @@ export class VehicleEntity extends ControllableEntity {
     return offset
   }
 
-  get vehicleName () {
-    return this.ptr.add(0x30).readPointer().add(0xF0).readPointer().readCString()
-  }
-
-  get path () {
-    return this.ptr.add(0x30).readPointer().add(0x130).readPointer().readCString()
-  }
+  @prop([0x30, 0xF0, 0x0], 'CString') accessor vehicleName: string | undefined
+  @prop([0x30, 0x130, 0x0], 'CString') accessor path: string | undefined
 
   get spotType () {
     const offset = Number(this.getSpottingOffsetCache())

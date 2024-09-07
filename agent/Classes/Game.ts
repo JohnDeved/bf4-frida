@@ -1,4 +1,5 @@
 
+import { prop } from '../Helper/Decorators.js'
 import { Utils } from '../Helper/Utils.js'
 import { Player } from './Player.js'
 
