@@ -1,0 +1,8 @@
+{
+  "extends": [
+      "./node_modules/@undefined/lint/.eslintrc"
+  ],
+  "rules": {
+    "@typescript-eslint/no-extraneous-class": "off"
+  }
+}
