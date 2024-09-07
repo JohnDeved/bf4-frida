@@ -69,15 +69,15 @@ function render (): void {
   if (isWeaponPrimaryOrSecondary) {
     const sway = playerLocalWeapon?.getWeaponSway
     if (sway) {
-      if (sway.isModified) {
-        if (sway.isDefaultData()) {
-          console.log(Color.yellow('[info]: sway reset'))
-          sway.isModified = false
-        }
-      }
+      // if (sway.isModified) {
+      //   if (sway.isDefaultData()) {
+      //     console.log(Color.yellow('[info]: sway reset'))
+      //     sway.isModified = false
+      //   }
+      // }
 
       if (!sway.isModified) {
-        sway.data = [0.4, 0.4, 0.4, 0.4]
+        sway.data = [0, 0, 0, 0]
         sway.isModified = true
       }
     }

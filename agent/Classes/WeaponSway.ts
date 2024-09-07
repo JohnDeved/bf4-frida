@@ -1,4 +1,5 @@
 import { Color } from '../Helper/Color.js'
+import { prop } from '../Helper/Decorators.js'
 import { Utils } from '../Helper/Utils.js'
 
 export class WeaponSway {
@@ -10,6 +11,11 @@ export class WeaponSway {
     console.log(Color.green('[info]: cached SwayData', this.weaponName, '->', String(this.data)))
   }
 
+  @prop([0x8, 0x430], 'Float') accessor deviationZoom = 1
+  @prop([0x8, 0x434], 'Float') accessor gameplayDeviationZoom = 1
+  @prop([0x8, 0x438], 'Float') accessor deviationNoZoom = 1
+  @prop([0x8, 0x43C], 'Float') accessor gameplayDeviationNoZoom = 1
+
   get isModified () {
     const cache = Utils.weaponSwayModifiedCache[this.weaponName]
     if (cache) return cache
@@ -20,69 +26,6 @@ export class WeaponSway {
 
   set isModified (value: boolean) {
     Utils.weaponSwayModifiedCache[this.weaponName] = value
-  }
-
-  get getWeaponSwayDataPtr () {
-    const weaponSwayDataPtr = this.ptr.add(0x8).readPointer()
-    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return
-
-    return weaponSwayDataPtr
-  }
-
-  get deviationZoom () {
-    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x430)
-    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return 1
-
-    return weaponSwayDataPtr.readFloat()
-  }
-
-  set deviationZoom (value: number) {
-    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x430)
-    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return
-
-    weaponSwayDataPtr.writeFloat(value)
-  }
-
-  get gameplayDeviationZoom () {
-    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x434)
-    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return 1
-
-    return weaponSwayDataPtr.readFloat()
-  }
-
-  set gameplayDeviationZoom (value: number) {
-    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x434)
-    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return
-
-    weaponSwayDataPtr.writeFloat(value)
-  }
-
-  get deviationNoZoom () {
-    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x438)
-    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return 1
-
-    return weaponSwayDataPtr.readFloat()
-  }
-
-  set deviationNoZoom (value: number) {
-    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x438)
-    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return
-
-    weaponSwayDataPtr.writeFloat(value)
-  }
-
-  get gameplayDeviationNoZoom () {
-    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x43C)
-    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return 1
-
-    return weaponSwayDataPtr.readFloat()
-  }
-
-  set gameplayDeviationNoZoom (value: number) {
-    const weaponSwayDataPtr = this.getWeaponSwayDataPtr?.add(0x43C)
-    if (Utils.isInvalidPtr(weaponSwayDataPtr)) return
-
-    weaponSwayDataPtr.writeFloat(value)
   }
 
   get data (): [number, number, number, number] {

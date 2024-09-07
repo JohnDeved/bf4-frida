@@ -24,12 +24,15 @@ export class Utils {
     return !this.isValidPtr(ptr)
   }
 
-  static deepPtr (ptr: NativePointer, offsets: number[]) {
+  static deepPtr (ptr: NativePointer, offsets: number[]): NativePointer | undefined {
     let currentPtr = ptr
 
-    for (const offset of offsets) {
-      currentPtr = currentPtr.add(offset)
-      if (this.isInvalidPtr(currentPtr)) return
+    for (let i = 0; i < offsets.length; i++) {
+      currentPtr = currentPtr.add(offsets[i])
+      if (i < offsets.length - 1) {
+        currentPtr = currentPtr.readPointer()
+        if (this.isInvalidPtr(currentPtr)) return
+      }
     }
 
     return currentPtr
