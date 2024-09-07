@@ -317,7 +317,10 @@ class Weapon extends FrostByteClass {
     const activeSlot = this.activeSlot
     if (typeof activeSlot === 'undefined') return
 
-    const weaponPtr = handler.add(activeSlot * 0x8).readPointer()
+    const weaponPtrAddr = handler.add(activeSlot * 0x8)
+    if (Utils.isInvalidPtr(weaponPtrAddr)) return
+  
+    const weaponPtr = weaponPtrAddr.readPointer()
     if (Utils.isInvalidPtr(weaponPtr)) return
 
     return weaponPtr
