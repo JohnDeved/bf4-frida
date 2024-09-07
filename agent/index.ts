@@ -77,7 +77,7 @@ function render (): void {
       // }
 
       if (!sway.isModified) {
-        sway.data = [0, 0, 0, 0]
+        sway.data = [0.4, 0.4, 0.4, 0.4]
         sway.isModified = true
       }
     }

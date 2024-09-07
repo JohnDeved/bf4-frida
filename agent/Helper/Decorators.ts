@@ -50,6 +50,7 @@ export function prop<InferThis extends ClassWithBaseAddr, InferReturnType extend
   options?: {
     length?: number
     getter?: (value: InferReturnType, obj: InferThis) => InferOverrideType
+    setter?: (value: InferOverrideType, obj: InferThis) => InferReturnType
   },
 ) {
   type ChooseReturnType = [InferOverrideType] extends [undefined] ? InferReturnType | undefined : InferOverrideType | undefined
@@ -79,6 +80,8 @@ export function prop<InferThis extends ClassWithBaseAddr, InferReturnType extend
       set (value) {
         const writeMethod = `write${type}` as WriteMethods
         if (typeof this.ptr[writeMethod] !== 'function') throw new Error(`Write method not found for type ${type}`)
+        // if getter is defined but not setter, throw an error
+        if (options?.getter && !options.setter) throw new Error('Getter is defined but setter is not')
 
         // Use deepPtr to calculate the final address
         const offsets = Array.isArray(offset) ? offset : [offset]
