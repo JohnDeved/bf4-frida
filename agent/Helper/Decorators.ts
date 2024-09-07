@@ -64,7 +64,7 @@ export function prop<InferThis extends ClassWithBaseAddr, InferReturnType extend
 
         // Use deepPtr to calculate the final address
         const offsets = Array.isArray(offset) ? offset : [offset]
-        const resolvedPtr = deepPtr.call(this, offsets as Offsets<ClassWithBaseAddr>)
+        const resolvedPtr = deepPtr.call(this as ClassWithBaseAddr, offsets as Offsets<ClassWithBaseAddr>)
 
         if (!resolvedPtr) return undefined as ChooseReturnType
 
@@ -82,7 +82,7 @@ export function prop<InferThis extends ClassWithBaseAddr, InferReturnType extend
 
         // Use deepPtr to calculate the final address
         const offsets = Array.isArray(offset) ? offset : [offset]
-        const resolvedPtr = deepPtr.call(this, offsets as Offsets<ClassWithBaseAddr>)
+        const resolvedPtr = deepPtr.call(this as ClassWithBaseAddr, offsets as Offsets<ClassWithBaseAddr>)
 
         if (!resolvedPtr) return
         resolvedPtr[writeMethod](value as never)
