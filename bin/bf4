@@ -1,5 +1,6 @@
 #!/bin/bash
 
-# run "npm link" to have the agent available in the PATH
+# run "npm link" to make this command available globally as "bf4"
 
-frida -n bf4.exe -l "$(dirname "$0")/../agent/index.ts" --runtime v8
+cd "$(dirname "$0")/.."
+npm run dev
