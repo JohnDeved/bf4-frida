@@ -15,21 +15,34 @@ class Utils {
   static classInfoCache: {[key: string]: NativePointer | undefined} = {}
   static weaponSwayCache: {[key: string]: [number, number, number, number] | undefined} = {}
   static weaponSwayModifiedCache: {[key: string]: boolean | undefined} = {}
+  static isValidPtrCache: Map<NativePointer, boolean> = new Map()
+  static readonly CACHE_THRESHOLD = 100000 // Set a threshold for the cache size
 
   static isValidPtr (ptr?: NativePointer): ptr is NativePointer {
     if (!ptr) return false
 
+    let isValid = true
+
     try {
-      void ptr.readU8()
+      void ptr.readByteArray(1)
     } catch {
-      return false
+      isValid = false
     }
     
-    return !ptr.isNull()
+    isValid = isValid && !ptr.isNull()
+
+    return isValid
   }
 
   static isInvalidPtr (ptr?: NativePointer): ptr is undefined {
     return !this.isValidPtr(ptr)
+  }
+
+  static checkCacheSize() {
+    if (this.isValidPtrCache.size > this.CACHE_THRESHOLD) {
+      this.isValidPtrCache.clear()
+      console.log(color.yellow('[info]: cleared cache'))
+    }
   }
 
   static getClassInfoPtr (headPtr: NativePointer) {
@@ -313,16 +326,16 @@ class Weapon extends FrostByteClass {
   get weaponPtr () {
     const handler = this.handler
     if (Utils.isInvalidPtr(handler)) return
-
+  
     const activeSlot = this.activeSlot
     if (typeof activeSlot === 'undefined') return
-
+  
     const weaponPtrAddr = handler.add(activeSlot * 0x8)
     if (Utils.isInvalidPtr(weaponPtrAddr)) return
   
     const weaponPtr = weaponPtrAddr.readPointer()
     if (Utils.isInvalidPtr(weaponPtr)) return
-
+  
     return weaponPtr
   }
 
