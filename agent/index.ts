@@ -16,20 +16,15 @@ class Utils {
   static weaponSwayCache: {[key: string]: [number, number, number, number] | undefined} = {}
   static weaponSwayModifiedCache: {[key: string]: boolean | undefined} = {}
 
-  static isValidPtr (ptr?: NativePointer): ptr is NativePointer {
-    if (!ptr) return false
-
-    let isValid = true
-
-    try {
-      void ptr.readByteArray(1)
-    } catch {
-      isValid = false
-    }
-
-    isValid = isValid && !ptr.isNull()
-
-    return isValid
+  static isValidPtr(ptr?: NativePointer): ptr is NativePointer {
+      if (!ptr || ptr.isNull()) return false;
+  
+      try {
+          ptr.readU8();
+          return true;
+      } catch {
+          return false;
+      }
   }
 
   static isInvalidPtr (ptr?: NativePointer): ptr is undefined {
