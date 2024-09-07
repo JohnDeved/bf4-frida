@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# run "npm link" to have the agent available in the PATH
+
+frida -n bf4.exe -l "$(dirname "$0")/../agent/index.ts" --runtime v8
