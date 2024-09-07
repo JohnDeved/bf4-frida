@@ -6,33 +6,86 @@ type Types = ReadMethods | WriteMethods extends `${'read' | 'write'}${infer R}` 
 interface ClassWithBaseAddr { ptr: NativePointer }
 type GetReturnForType<T extends Types> = ReturnType<NativePointer[`read${T}`]>
 
-export function prop<T extends ClassWithBaseAddr, V extends GetReturnForType<X> | undefined, X extends Types> (
-  offset: number | number[],
-  type: X,
+type Offset<T> = NativePointer | number | ((obj: T, base: NativePointer) => NativePointer | undefined) | keyof {
+  [K in keyof T as T[K] extends NativePointer | undefined ? K : never]: T[K]
+}
+type Offsets<T> = Array<Offset<T>>
+
+function deepPtr<T extends ClassWithBaseAddr> (this: T, offsets: Array<Offset<T>>): NativePointer | undefined {
+  let currentPtr = this.ptr
+
+  for (let i = 0; i < offsets.length; i++) {
+    const offset = offsets[i]
+
+    // console.log('offset', offset, currentPtr)
+
+    // Check if the offset is a key of T and the corresponding value is a NativePointer
+    if (typeof offset === 'string') {
+      const res = this[offset] as NativePointer | undefined
+      if (!res) return
+      currentPtr = res
+      continue
+    } else if (typeof offset === 'function') {
+      // Check if the offset is a function (dynamic offset)
+      const res = offset(this, currentPtr) // Pass the `this` context and the current base pointer
+      if (!res) return
+      currentPtr = res
+    } else if (typeof offset === 'number') {
+      currentPtr = currentPtr.add(offset) // Static offset
+    }
+
+    if (i < offsets.length - 1) {
+      if (Utils.isInvalidPtr(currentPtr)) return
+      currentPtr = currentPtr.readPointer()
+    }
+  }
+
+  if (Utils.isInvalidPtr(currentPtr)) return
+  return currentPtr
+}
+
+export function prop<InferThis extends ClassWithBaseAddr, InferReturnType extends GetReturnForType<InferType>, InferType extends Types, InferOverrideType> (
+  offset: Offset<InferThis> | Offsets<InferThis>,
+  type: InferType,
+  options?: {
+    length?: number
+    getter?: (value: InferReturnType, obj: InferThis) => InferOverrideType
+  },
 ) {
+  type ChooseReturnType = [InferOverrideType] extends [undefined] ? InferReturnType | undefined : InferOverrideType | undefined
   return function (
-    target: ClassAccessorDecoratorTarget<T, V>,
-    context: ClassAccessorDecoratorContext<T, V>,
-    length?: number,
-  ): ClassAccessorDecoratorResult<T, V> {
+    target: ClassAccessorDecoratorTarget<InferThis, ChooseReturnType>,
+    context: ClassAccessorDecoratorContext<InferThis, ChooseReturnType>,
+  ): ClassAccessorDecoratorResult<InferThis, ChooseReturnType> {
     return {
       get () {
         const readMethod = `read${type}` as ReadMethods
         if (typeof this.ptr[readMethod] !== 'function') throw new Error(`Read method not found for type ${type}`)
 
-        const addr = Utils.deepPtr(this.ptr, Array.isArray(offset) ? offset : [offset])
-        if (!addr) return undefined as V
+        // Use deepPtr to calculate the final address
+        const offsets = Array.isArray(offset) ? offset : [offset]
+        const resolvedPtr = deepPtr.call(this, offsets as Offsets<ClassWithBaseAddr>)
 
-        return addr[readMethod](length as 0) as V
+        if (!resolvedPtr) return undefined as ChooseReturnType
+
+        const res = resolvedPtr[readMethod](options?.length as 0) as InferReturnType
+
+        if (options?.getter && res) {
+          return options.getter(res, this) as ChooseReturnType
+        }
+
+        return res as ChooseReturnType
       },
       set (value) {
         const writeMethod = `write${type}` as WriteMethods
         if (typeof this.ptr[writeMethod] !== 'function') throw new Error(`Write method not found for type ${type}`)
 
-        const addr = Utils.deepPtr(this.ptr, Array.isArray(offset) ? offset : [offset])
-        if (!addr) return
+        // Use deepPtr to calculate the final address
+        const offsets = Array.isArray(offset) ? offset : [offset]
+        const resolvedPtr = deepPtr.call(this, offsets as Offsets<ClassWithBaseAddr>)
 
-        addr[writeMethod](value as never)
+        if (!resolvedPtr) return
+        resolvedPtr[writeMethod](value as never)
       },
     }
   }
