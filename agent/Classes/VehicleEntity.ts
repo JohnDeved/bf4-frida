@@ -41,8 +41,11 @@ export class VehicleEntity extends ControllableEntity {
     return offset
   }
 
-  @prop([0x30, 0xF0, 0x0], 'CString') accessor vehicleName: string | undefined
-  @prop([0x30, 0x130, 0x0], 'CString') accessor path: string | undefined
+  @prop([0x30, 0xF0, 0x0], 'CString')
+  accessor vehicleName: string | undefined
+
+  @prop([0x30, 0x130, 0x0], 'CString')
+  accessor path: string | undefined
 
   get spotType () {
     const offset = Number(this.getSpottingOffsetCache())

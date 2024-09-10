@@ -11,10 +11,17 @@ export class WeaponSway {
     console.log(Color.green('[info]: cached SwayData', this.weaponName, '->', String(this.data)))
   }
 
-  @prop([0x8, 0x430], 'Float') accessor deviationZoom: number | undefined
-  @prop([0x8, 0x434], 'Float') accessor gameplayDeviationZoom: number | undefined
-  @prop([0x8, 0x438], 'Float') accessor deviationNoZoom: number | undefined
-  @prop([0x8, 0x43C], 'Float') accessor gameplayDeviationNoZoom: number | undefined
+  @prop([0x8, 0x430], 'Float')
+  accessor deviationZoom: number | undefined
+
+  @prop([0x8, 0x434], 'Float')
+  accessor gameplayDeviationZoom: number | undefined
+
+  @prop([0x8, 0x438], 'Float')
+  accessor deviationNoZoom: number | undefined
+
+  @prop([0x8, 0x43C], 'Float')
+  accessor gameplayDeviationNoZoom: number | undefined
 
   get isModified () {
     const cache = Utils.weaponSwayModifiedCache[this.weaponName]
